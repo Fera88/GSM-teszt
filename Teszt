@@ -1,0 +1,1317 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Data.OleDb;
+using System.IO;
+
+namespace GSM_Szerviz
+{
+    public partial class szerviz : Form
+    {
+        int alkatresz = 0; //befejezett szervizlapon(gridview4) kiiíráshoz és nyomtatáshoz!
+        public static int kicsoda;
+        public static int tipus2;
+        public static int alkID;
+        public static int ugyfelID; // szűréshez!
+        private Form1 form1;
+        public szerviz(Form1 form1)
+        {
+            
+            InitializeComponent();
+            this.form1 = form1;
+            Text = "Szerviz";
+            groupBox2.Enabled = false;
+            leiraslabel.Text = "Felvétel előtt szükséges \nfeltölteni képet \na készülékről,\nmiután kitöltöttük \naz adatokat!";
+            button3.Enabled = false;
+            button4.Enabled = false;
+            button5.Visible = false;
+            bejelentkezve();
+        }
+        //----
+        //Új szerviz!
+        //----
+        private void bejelentkezve()
+        {
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.CommandText = "SELECT [Felhasználó szám] FROM Felhasználók WHERE Név='" + Form1.neve + "' AND Jelszó='" + Form1.jelszava + "'";
+            con.Open();
+            OleDbDataReader reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                kicsoda = Convert.ToInt16(reader["Felhasználó szám"].ToString());
+            }
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            Close();
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            // ha már van ilyen ügyfél
+            if (button2.Text=="Tovább...")
+            {
+                Ugyfelvalaszt();
+                groupBox1.Enabled = false;
+                groupBox2.Enabled = true;
+            }
+            else
+            {
+                string kommand = "INSERT INTO Ügyfél (Név,Irányítószám,Város,Cím,Telefonszám,Email) VALUES ('" + nevtext.Text + "'," +
+                    irszamtext.Text + ",'" + varostext.Text + "','" + cimtext.Text + "','" + telefontext.Text + "','" + emailtext.Text + "')";
+                OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+                OleDbCommand cmd = con.CreateCommand();
+                cmd.Connection = con;
+
+                if (nevtext.Text.Length > 0 && irszamtext.Text.Length > 0 && varostext.Text.Length > 0 && cimtext.Text.Length > 0 && telefontext.Text.Length > 0 && emailtext.Text.Length > 0)
+                {
+                    con.Open();
+                    cmd.CommandText = kommand;
+                    cmd.ExecuteNonQuery();
+                    con.Close();
+                    groupBox1.Enabled = false;
+                    groupBox2.Enabled = true;
+                }
+                else
+                {
+                    MessageBox.Show("Nem adtál meg néhány adatot!");
+                }
+            }
+            Ugyfelvalaszt();
+            Markakombo();
+        }
+
+        private void Markakombo()
+        {
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT Márka FROM Telefonok WHERE Marker='m'", con);
+            DataTable dt = new DataTable();
+            con.Open();
+            adapter.Fill(dt);
+            for (int i = 0; i < dt.Rows.Count; i++)
+            {
+                markacombo.Items.Add(dt.Rows[i]["Márka"]);
+            }
+        }
+
+        private void Ugyfelvalaszt()
+        {
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.CommandText = "SELECT Név, [Ügyfél ID] FROM Ügyfél WHERE Név='" + nevtext.Text + "'";
+            con.Open();
+            OleDbDataReader reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                ugyfelnev.Text = reader["Név"].ToString();
+                idlabel.Text = reader["Ügyfél ID"].ToString();
+            }
+        }
+
+        private void irszamtext_Leave(object sender, EventArgs e)
+        {
+            string command = "SELECT Város FROM Városok WHERE Irányítószám=" + irszamtext.Text;
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.CommandText = command;
+            con.Open();
+            try
+            {
+            OleDbDataReader reader = cmd.ExecuteReader(); 
+            while (reader.Read())
+            {
+                varostext.Text = reader["Város"].ToString();
+            }
+            con.Close();
+
+            }
+            catch (Exception)
+            {
+
+                MessageBox.Show("Nem adott meg irányítószámot!");
+            }
+        }
+
+
+        private void markacombo_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT Típus FROM Telefonok WHERE Márka='"+markacombo.SelectedItem.ToString()+"'", con);
+            DataTable dt = new DataTable();
+            con.Open();
+            adapter.Fill(dt);
+            for (int i = 0; i < dt.Rows.Count; i++)
+            {
+                tipuscombo.Items.Add(dt.Rows[i]["Típus"]);
+            }
+        }
+
+        private void tipuscombo_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.CommandText = "SELECT Sorszám FROM Telefonok WHERE Márka='" + markacombo.SelectedItem.ToString() + "' AND Típus='" + tipuscombo.SelectedItem.ToString() + "'";
+            con.Open();
+            OleDbDataReader reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                keszulekid.Text = reader["Sorszám"].ToString();
+            }
+            con.Close();
+        }
+
+        private void imeitext_Leave(object sender, EventArgs e)
+        {
+            if (imeitext.TextLength>0)
+            {
+                button4.Enabled = true;
+            }
+        }
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+            openFileDialog1.Filter = "JPG-fájlok|*.jpg";
+            if (openFileDialog1.ShowDialog() == DialogResult.OK)
+            {
+                pictureBox1.Image = Image.FromFile(openFileDialog1.FileName);
+                keplabel.Text=openFileDialog1.SafeFileName.Replace(openFileDialog1.SafeFileName, "imei_" + imeitext.Text);
+                button5.Visible = true;
+                button4.Visible = false;
+            }
+   
+        }
+
+        private void button5_Click(object sender, EventArgs e)
+        {
+            {
+                string helye = Properties.Settings.Default.Keptar + "\\"+keplabel.Text+ ".jpg";
+                File.Copy(openFileDialog1.FileName, helye);
+                MessageBox.Show("Kép elmentve!");
+                button3.Enabled = true;
+                button4.Visible = true;
+                button5.Visible = false;
+                button4.Enabled = false;
+            }
+            
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            string kommand = "INSERT INTO Készülékek (Imei,Típus,Szín,Állapota,Tartozékok,Garancia,[Ügyfél ID]) VALUES (" + imeitext.Text + "," + keszulekid.Text + ",'" + szintext.Text + "','" +
+                allapotcombo.SelectedItem.ToString() + "','" + tartozektext.Text + "'," + garicheck.Checked + "," + idlabel.Text + ")";
+            string lapkommand = "INSERT INTO Szervizlap(Imei,Állapot,Alkatrész,[Javító személy],[Ügyfél ID]) VALUES ('" + imeitext.Text + "','Felvéve',1,"+kicsoda+","+idlabel.Text+")";// 1.es alibi alkatrész, javító személy beálltása!!!!
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.Connection = con;
+            if (imeitext.Text.Length>0&&keszulekid.Text.Length>0&&szintext.Text.Length>0&&tartozektext.Text.Length>0)
+            {
+                con.Open();
+                cmd.CommandText = kommand;
+                cmd.ExecuteNonQuery();
+                con.Close();
+                con.Open();
+                cmd.CommandText = lapkommand;
+                cmd.ExecuteNonQuery();
+                con.Close();
+            }
+            else
+            {
+                MessageBox.Show("Nem adtál meg néhány adatot!");
+            }
+            MessageBox.Show("Sikeres felvétel!");
+            tabPage2_Enter(sender, null);
+        }
+
+        private void nevtext_TextChanged(object sender, EventArgs e)
+        {
+            if (nevtext.Text.Length>0)
+            {
+                string feltetel = "SELECT * FROM Ügyfél WHERE Név LIKE '" + nevtext.Text + "'";
+                OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+                OleDbCommand cmd = con.CreateCommand();
+                cmd.CommandText = feltetel;
+                con.Open();
+                OleDbDataReader reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    button2.Text = "Tovább...";
+                    ufidtext.Text = reader["Ügyfél ID"].ToString();
+                    nevtext.Text = reader["Név"].ToString();
+                    irszamtext.Text = reader["Irányítószám"].ToString();
+                    varostext.Text = reader["Város"].ToString();
+                    cimtext.Text = reader["Cím"].ToString();
+                    telefontext.Text = reader["Telefonszám"].ToString();
+                    emailtext.Text = reader["Email"].ToString();
+                    label26.Text = "Létező ügyfél!";
+                }
+                con.Close();
+            }
+            else
+            {
+                ufidtext.Text = "";
+                nevtext.Text = "";
+                irszamtext.Text = "";
+                varostext.Text = "";
+                cimtext.Text = "";
+                telefontext.Text = "";
+                emailtext.Text = "";
+                button2.Text = "Mentés és tovább...";
+                label26.Text = "...";
+            }
+        }
+       private void ufidtext_TextChanged(object sender, EventArgs e)
+        {
+           /* if (ufidtext.Text.Length > 0)
+            {
+                string feltetel = "SELECT * FROM Ügyfél WHERE [Ügyfél ID] LIKE '" + ufidtext.Text + "'";
+                OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+                OleDbCommand cmd = con.CreateCommand();
+                cmd.CommandText = feltetel;
+                con.Open();
+                OleDbDataReader reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    button2.Text = "Tovább...";
+                    ufidtext.Text = reader["Ügyfél ID"].ToString();
+                    nevtext.Text = reader["Név"].ToString();
+                    irszamtext.Text = reader["Irányítószám"].ToString();
+                    varostext.Text = reader["Város"].ToString();
+                    cimtext.Text = reader["Cím"].ToString();
+                    telefontext.Text = reader["Telefonszám"].ToString();
+                    emailtext.Text = reader["Email"].ToString();
+                    label26.Text = "Létező ügyfél!";
+                }
+                con.Close();
+            }
+            else
+            {
+                ufidtext.Text = "";
+                nevtext.Text = "";
+                irszamtext.Text = "";
+                varostext.Text = "";
+                cimtext.Text = "";
+                telefontext.Text = "";
+                emailtext.Text = "";
+                button2.Text = "Mentés és tovább...";
+                label26.Text = "...";
+            }*/
+        }
+
+        //----
+        // Folyamatban lévő szerviz oldal!
+        //----
+        private void tabPage2_Enter(object sender, EventArgs e)
+        {
+            comboBox1.Items.Clear();
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT Sorszám,Imei,Állapot FROM Szervizlap WHERE Állapot='Felvéve' ORDER BY Sorszám", con);
+            DataSet data = new DataSet();
+            con.Open();
+            adapter.Fill(data, "Szervizlap");
+            dataGridView1.DataSource = data;
+            dataGridView1.DataMember = "Szervizlap";
+            //
+            // Ügyfelek betöltése a comboboxba
+            //
+           
+            OleDbDataAdapter dapter = new OleDbDataAdapter("SELECT Név FROM Ügyfél", con);
+            DataTable dt = new DataTable();
+            dapter.Fill(dt);
+            for (int i = 0; i < dt.Rows.Count; i++)
+            {
+                
+                comboBox1.Items.Add(dt.Rows[i]["Név"]);
+            }
+            con.Close();
+        }
+
+        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.CommandText = "SELECT [Ügyfél ID] FROM Ügyfél WHERE Név='"+comboBox1.SelectedItem.ToString()+"'";
+            con.Open();
+            OleDbDataReader reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                ugyfelID = Convert.ToInt16(reader["Ügyfél ID"].ToString());
+            }
+            OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT Sorszám,Imei,Állapot FROM Szervizlap WHERE [Ügyfél ID]=" + ugyfelID+"AND Állapot='Felvéve'", con);
+            DataSet ds = new DataSet();
+            adapter.Fill(ds, "Szervizlap");
+            con.Close();
+            dataGridView1.DataSource = ds;
+            dataGridView1.DataMember = "Szervizlap";
+            dataGridView1_CellContentClick(sender, null);
+        }
+
+        public void dataGridView1_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+            comboBox2.Enabled = true;
+            markatext.Text = "";
+            tipustext.Text = "";
+            szinetext.Text = "";
+            allapotatext.Text = "";
+            tartozekatext.Text = "";
+            //
+            try
+            {
+            string kommand = "SELECT Szín,Állapota,Tartozékok,Garancia FROM Készülékek WHERE Imei='" + dataGridView1.CurrentRow.Cells[1].Value.ToString() + "'";
+            OleDbConnection con1 = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd1 = con1.CreateCommand();
+            cmd1.CommandText = kommand;
+            con1.Open();
+            OleDbDataReader reader = cmd1.ExecuteReader();
+            while (reader.Read())
+            {
+                szinetext.Text = reader["Szín"].ToString();
+                allapotatext.Text = reader["Állapota"].ToString();
+                tartozekatext.Text = reader["Tartozékok"].ToString();
+                garilabel.Text = reader["Garancia"].ToString();
+                if (garilabel.Text=="True")
+                {
+                    garilabel.Text = "VAN";
+                }
+                else
+                {
+                    garilabel.Text = "NINCS";
+                }
+            }
+            con1.Close();
+
+            }
+            catch (Exception)
+            {
+
+            }
+            //
+            //Márka típus beírása
+            int tipus=0;
+            try
+            {
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            con.Open();
+            OleDbCommand kmd = con.CreateCommand();
+            cmd.CommandText = "SELECT Típus FROM Készülékek WHERE Imei='"+dataGridView1.CurrentRow.Cells[1].Value.ToString()+"'";
+            OleDbDataReader rider = cmd.ExecuteReader();
+            while (rider.Read())
+            {
+                tipus = Convert.ToInt16(rider["Típus"].ToString());
+            }
+            con.Close();
+            con.Open();
+            OleDbCommand komm = con.CreateCommand();
+            komm.CommandText = "SELECT Márka,Típus FROM Telefonok WHERE Sorszám="+tipus;
+            OleDbDataReader rd = komm.ExecuteReader();
+            while (rd.Read())
+            {
+                markatext.Text = rd["Márka"].ToString();
+                tipustext.Text = rd["Típus"].ToString();
+            }
+            con.Close();
+
+            }
+            catch (Exception)
+            {
+
+                
+            }
+            //kép
+            //
+            try
+            {
+            if (File.Exists(Properties.Settings.Default.Keptar + "\\" + "imei_" + dataGridView1.CurrentRow.Cells[1].Value.ToString() + ".jpg"))
+            {
+                pictureBox2.Image = Image.FromFile(Properties.Settings.Default.Keptar + "\\" + "imei_" + dataGridView1.CurrentRow.Cells[1].Value.ToString() + ".jpg");
+
+            }
+
+            }
+            catch (Exception)
+            {
+      
+                pictureBox2.Image = Image.FromFile(Properties.Settings.Default.Keptar + "\\no-photo.jpg");
+                
+            }
+            if (garilabel.Text=="VAN")
+            {
+                button6.Enabled = true;
+                comboBox2.Enabled = false;
+            }
+
+        }
+
+        private void comboBox2_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            button6.Enabled = true;
+        }
+
+        private void button6_Click(object sender, EventArgs e)
+        {
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            con.Open();
+            if (comboBox2.SelectedItem.ToString()=="Nem"||garilabel.Text=="VAN")
+
+            {
+                cmd.CommandText = "UPDATE Szervizlap SET Állapot='Javítás alatt' WHERE Imei='" + dataGridView1.CurrentRow.Cells[1].Value.ToString() + "'";
+                cmd.Connection = con;
+                cmd.ExecuteNonQuery();
+                MessageBox.Show("Ajánlat nem készült,\nszervizlap felvéve!","Figyelem!");
+            }
+            else
+            {
+            cmd.CommandText = "UPDATE Szervizlap SET [Kér ajánlatot]=TRUE, Állapot='Javítás alatt' WHERE Imei='"+dataGridView1.CurrentRow.Cells[1].Value.ToString()+"'";
+            cmd.Connection = con;
+            cmd.ExecuteNonQuery();
+            OleDbCommand cmd2 = con.CreateCommand();
+            cmd2.CommandText = "INSERT INTO Ajánlat (Imei,Alkatrész,Állapot) VALUES('" + dataGridView1.CurrentRow.Cells[1].Value.ToString() + "',1,'Nincs elfogadva')";
+            cmd2.Connection = con;
+            cmd2.ExecuteNonQuery();
+                MessageBox.Show("Ajánlat elkészült,\nszervizlap felvéve!","Figyelem!");
+            }
+            con.Close();
+            //
+            //ajánlat lap beszúrása...
+            //
+            //
+            tabControl1.SelectTab(tabPage3);
+        }
+
+        private void tabPage3_Enter(object sender, EventArgs e)
+        {
+            comboBox3.Items.Clear();
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT Sorszám,Imei,Állapot FROM Szervizlap WHERE Állapot='Javítás alatt' ORDER BY Sorszám", con);
+            DataSet data = new DataSet();
+            con.Open();
+            adapter.Fill(data, "Szervizlap");
+            dataGridView2.DataSource = data;
+            dataGridView2.DataMember = "Szervizlap";
+            con.Close();
+            //----
+            //Ügyfél feltöltés
+            //----
+            OleDbDataAdapter dapter = new OleDbDataAdapter("SELECT Név FROM Ügyfél", con);
+            DataTable dt = new DataTable();
+            dapter.Fill(dt);
+            for (int i = 0; i < dt.Rows.Count; i++)
+            {
+                comboBox3.Items.Add(dt.Rows[i]["Név"]);
+            }
+            con.Close();
+        }
+
+        private void comboBox3_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            int id = 0;
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.CommandText = "SELECT [Ügyfél ID] FROM Ügyfél WHERE Név='" + comboBox3.SelectedItem.ToString() + "'";
+            con.Open();
+            OleDbDataReader reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                id = Convert.ToInt16(reader["Ügyfél ID"].ToString());
+            }
+            OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT Sorszám,Imei,Állapot FROM Szervizlap WHERE [Ügyfél ID]=" + id + "AND Állapot='Javítás alatt'", con);
+            DataSet ds = new DataSet();
+            adapter.Fill(ds, "Szervizlap");
+            dataGridView2.DataSource = ds;
+            dataGridView2.DataMember = "Szervizlap";
+            con.Close();
+            dataGridView2_CellContentClick(sender, null);
+        }
+        private void dataGridView2_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+            // ide jön a feltöltés az adatokatnk!
+            comboBox4.Items.Clear();
+            groupBox4.Visible = true;
+            richTextBox1.Enabled = true;
+            alkartext.Text = "";
+            munkadijtext.Text = "";
+            comboBox4.Enabled = true;
+            comboBox5.Enabled = true;
+            button7.Enabled = false;
+            button8.Enabled = false;
+            try
+            {
+                string kommand = "SELECT Szín,Állapota,Tartozékok,Garancia FROM Készülékek WHERE Imei='" + dataGridView2.CurrentRow.Cells[1].Value.ToString() + "'";
+                OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+                OleDbCommand cmd = con.CreateCommand();
+                cmd.CommandText = kommand;
+                con.Open();
+                OleDbDataReader reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    szine2text.Text = reader["Szín"].ToString();
+                    allapot2text.Text = reader["Állapota"].ToString();
+                    tartozek2text.Text = reader["Tartozékok"].ToString();
+                    gari2label.Text = reader["Garancia"].ToString();
+                    if (gari2label.Text == "True")
+                    {
+                        gari2label.Text = "VAN";
+                    }
+                    else
+                    {
+                        gari2label.Text = "NINCS";
+                    }
+                }
+                con.Close();
+            }
+            catch (Exception)
+            {
+
+               ajanlatlabel.Text = "...";
+               vanelabel.Text = "...";
+               ajanlattoltlabel.Text = "...";
+               button7.Enabled = false;
+               button8.Enabled = false;
+               richTextBox1.Enabled = false;
+               groupBox4.Visible = false;
+            }
+            //márka,típus
+            try
+            {
+                OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+                OleDbCommand cmd = con.CreateCommand();
+                con.Open();
+                OleDbCommand kmd = con.CreateCommand();
+                cmd.CommandText = "SELECT Típus FROM Készülékek WHERE Imei='" + dataGridView2.CurrentRow.Cells[1].Value.ToString() + "'";
+                OleDbDataReader rider = cmd.ExecuteReader();
+                while (rider.Read())
+                {
+                    tipus2 = Convert.ToInt16(rider["Típus"].ToString());
+                }
+                con.Close();
+                con.Open();
+                OleDbCommand komm = con.CreateCommand();
+                komm.CommandText = "SELECT Márka,Típus FROM Telefonok WHERE Sorszám=" + tipus2;
+                OleDbDataReader rd = komm.ExecuteReader();
+                while (rd.Read())
+                {
+                    marka2text.Text = rd["Márka"].ToString();
+                    tipus2text.Text = rd["Típus"].ToString();
+                }
+                //alkatrész kombó feltöltése adott telefon alkatrészeivel
+                OleDbDataAdapter dapter = new OleDbDataAdapter("SELECT Megnevezés FROM Alkatrészek WHERE [Telefon típus]="+tipus2, con);
+                DataTable dt = new DataTable();
+                dapter.Fill(dt);
+                for (int i = 0; i < dt.Rows.Count; i++)
+                {
+                    comboBox4.Items.Add(dt.Rows[i]["Megnevezés"]);
+                }
+                    comboBox4.Items.Add("GARANCIA");
+                //
+
+            }
+            catch (Exception)
+            {
+
+                
+            }
+            //----
+            //Van ajánlat???
+            //----
+            try
+            {
+                ajanlattoltlabel.Text = "...";
+                
+                string hibaleir = ""; // ha van kész ajánlat innen szedi a leírást!
+                OleDbConnection con2 = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+                OleDbCommand cmd2 = con2.CreateCommand();
+                cmd2.Connection = con2;
+                cmd2.CommandText = "SELECT Állapot FROM Ajánlat WHERE Imei='" + dataGridView2.CurrentRow.Cells[1].Value.ToString() + "'";
+                con2.Open();
+                string van = (string)cmd2.ExecuteScalar();
+                if (van == null)
+                {
+                    string allap = "";
+                    ajanlatlabel.Text = "Nincs ajánlat készítve!";
+                    cmd2.CommandText = "SELECT [Kér ajánlatot], [Hiba leírása] FROM Szervizlap WHERE Imei='" + dataGridView2.CurrentRow.Cells[1].Value.ToString() + "'";
+                    OleDbDataReader reader1 = cmd2.ExecuteReader();
+                    while (reader1.Read())
+                    {
+                        allap = reader1["Kér ajánlatot"].ToString();
+                        hibaleir = reader1["Hiba leírása"].ToString();
+                    }
+                    if (allap == "False")
+                    {
+                        vanelabel.Text = "Nem kért az ügyfél ajánlatot!";
+                    }
+                    else
+                    {
+                        vanelabel.Text = "...";
+                    }
+                }
+                else
+                {
+                    ajanlatlabel.Text = "Van már ajánlat a rendszerben";
+                    if (van == "Nincs elfogadva")
+                    {
+                        vanelabel.Text = ",de nincs elfogadva!";
+                        button8.Enabled = false;
+                    }
+                    else
+                    {
+                        vanelabel.Text = " és elfogadva!";
+                    }
+                }
+                cmd2.CommandText = "SELECT Ár,Költség FROM Ajánlat WHERE Imei='" + dataGridView2.CurrentRow.Cells[1].Value.ToString() + "'";
+                OleDbDataReader reader = cmd2.ExecuteReader();
+                while (reader.Read())
+                {
+                    if (reader["Ár"].ToString() == "0" && reader["Költség"].ToString() == "0")
+                    {
+                        if (vanelabel.Text=="Nem kért az ügyfél ajánlatot")
+                        {
+                            ajanlattoltlabel.Text = "...";
+                        }
+                        ajanlattoltlabel.Text = "Az ajánlat hiányos, töltsd ki a költségekkel \nés küldd el az ügyfélnek!";
+                        button7.Enabled = true;
+                        button8.Enabled = false;
+                    }
+                    else
+                    {
+                        //ha van ajánlat akkor ezek alapján kell a javítás!
+                        ajanlattoltlabel.Text = "Az ajánlat elkészült, ha elfogadták javitsd meg, \nha nem keress másikat!";
+                        alkartext.Text = reader["Ár"].ToString();
+                        munkadijtext.Text = reader["Költség"].ToString();
+                        richTextBox1.Text = hibaleir;
+                        comboBox4.Enabled = false;
+                        comboBox5.Enabled = false;
+                        button7.Enabled = false;
+                        button8.Enabled = true;
+                        richTextBox1.Enabled = false;
+                    }
+                }
+
+                OleDbCommand cmdd = con2.CreateCommand();
+                cmdd.CommandText = "SELECT [Hiba leírása] FROM Ajánlat WHERE Imei='" + dataGridView2.CurrentRow.Cells[1].Value.ToString() + "'";
+                OleDbDataReader reader2 = cmdd.ExecuteReader();
+                while (reader2.Read())
+                {
+                    ajanlattoltlabel.Text += "";
+                    richTextBox1.Text = reader2["Hiba leírása"].ToString();
+                    if (richTextBox1.Text == "")
+                    {
+                        ajanlattoltlabel.Text += "\n\nKérlek töltsd ki a hiba leírást is!";
+                    }
+
+                }
+                con2.Close();
+            }
+            catch (Exception)
+            {
+                
+            }
+            
+        }
+         private void comboBox4_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            //Alkatrész ár kiírása textboxba!
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.Connection = con;
+            con.Open();
+            cmd.CommandText = "SELECT Kód,Ár FROM Alkatrészek WHERE Megnevezés='" + comboBox4.SelectedItem.ToString() + "' AND [Telefon típus]=" + tipus2;
+            OleDbDataReader reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                alkartext.Text = reader["Ár"].ToString()+" Ft";
+                alkID = Convert.ToInt16(reader["Kód"].ToString());
+            }
+            con.Close();
+        }
+        private void comboBox5_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            // költségek kiírása!
+            if (comboBox5.Items[0].ToString()=="Alaplap csere")
+            {
+                munkadijtext.Text = "10000 Ft";
+            }
+            if (comboBox5.Items[1].ToString()=="Kijelző csere")
+            {
+                munkadijtext.Text = "15000 Ft";
+            }
+            if (comboBox5.Items[2].ToString() == "USB aljzat csere")
+            {
+                munkadijtext.Text = "8000 Ft";
+            }
+            if (comboBox5.Items[3].ToString() == "Hátlap csere")
+            {
+                munkadijtext.Text = "12000 Ft";
+            }
+            if (comboBox5.Items[4].ToString() == "Elektronika csere")
+            {
+                munkadijtext.Text = "25000 Ft";
+            }
+           /* if (comboBox5.Items[5].ToString()=="GARANCIA")
+            {
+                munkadijtext.Text = "0 Ft";
+            }*/
+        }
+        private void button7_Click(object sender, EventArgs e)
+        {
+            //ajánlat feltöltése árakkal!
+            string kommand= "UPDATE Ajánlat SET Alkatrész=" + alkID + ", Ár=" + alkartext.Text.Replace(" Ft","") + ", Költség=" + munkadijtext.Text.Replace(" Ft", "") + " WHERE Imei='" +
+                dataGridView2.CurrentRow.Cells[1].Value.ToString() + "'";
+            string kommand2= "UPDATE Szervizlap SET [Hiba leírása]='" + richTextBox1.Text + "',Alkatrész="+alkID+" WHERE Imei='" + dataGridView2.CurrentRow.Cells[1].Value.ToString() + "'";
+             OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+             OleDbCommand cmd = con.CreateCommand();
+             cmd.Connection = con;
+             cmd.CommandText = kommand;
+             con.Open();
+             cmd.ExecuteNonQuery();
+            //Hiba leírása a munkalapra kerül rá!
+         OleDbCommand cmd2 = con.CreateCommand();
+            cmd2.Connection = con;
+            cmd2.CommandText = kommand2;
+            cmd.ExecuteNonQuery();
+            con.Close();
+            alkartext.Text = "";
+            munkadijtext.Text = "";
+            richTextBox1.Text = "";
+            comboBox4.Text = "";
+            comboBox5.Text = "";
+            MessageBox.Show("Ajánlat feltöltve!");
+        }
+        private void richTextBox1_TextChanged(object sender, EventArgs e)
+        {
+            button8.Enabled = true;
+            comboBox4.Enabled = true;
+            comboBox5.Enabled = true;
+        }
+        private void button8_Click(object sender, EventArgs e)
+        {
+            int cikksz = 0;
+            string megnevezes = "";
+            int ar = 0;
+            //szervizlap feltöltése ha javítva lett és alkatrész darabszám levonása!
+            if (MessageBox.Show("A készülék javítva lett?","KÉRDÉS",MessageBoxButtons.YesNo)==DialogResult.Yes)
+            {
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            OleDbCommand cmd2 = con.CreateCommand();
+            OleDbCommand cmd3 = con.CreateCommand();
+            OleDbCommand valaszt = con.CreateCommand();
+            OleDbCommand alk = con.CreateCommand();
+            cmd.Connection = con;
+            cmd2.Connection = con;
+            cmd3.Connection = con;
+            valaszt.Connection = con;
+            alk.Connection = con;
+            con.Open();
+            valaszt.CommandText = "SELECT Cikkszám,Megnevezés,Ár FROM Alkatrészek WHERE Kód=" + alkID;
+                OleDbDataReader reader = valaszt.ExecuteReader();
+                while (reader.Read())
+                {
+                    cikksz = Convert.ToInt32(reader["Cikkszám"].ToString());
+                    megnevezes = reader["Megnevezés"].ToString();
+                    ar = Convert.ToInt32(reader["Ár"].ToString());
+                }
+                reader.Close();
+            cmd.CommandText = "UPDATE Szervizlap SET [Hiba leírása]='" + richTextBox1.Text + "',Alkatrész=" + alkID + ",Állapot='Javitva',[Javító személy]=" + kicsoda+" WHERE Imei='"+dataGridView2.CurrentRow.Cells[1].Value.ToString()+"'";
+            cmd2.CommandText = "UPDATE Alkatrészek SET Mennyiség= Mennyiség-1 WHERE Kód=" + alkID;
+            cmd3.CommandText = "INSERT INTO Alkatrészfogyás (Cikkszám,Megnevezés,Mennyi,Ár,Dátum) VALUES (" + cikksz + ",'" + megnevezes + "',1," + ar + ",'" + DateTime.Now.ToShortDateString()+ "')";
+            alk.CommandText = "SELECT Mennyiség FROM Alkatrészek WHERE Kód=" + alkID;
+            int van = (int)alk.ExecuteScalar();
+            if (van==0)
+            {
+                MessageBox.Show("Elfogyott az alkatrész!");
+            }
+            else
+            {
+                cmd.ExecuteNonQuery();
+                cmd2.ExecuteNonQuery();
+                cmd3.ExecuteNonQuery();
+            }
+            con.Close();
+                MessageBox.Show("A készülék javított státuszba került!");
+
+            }
+        }
+        //-----
+        //Ajánlat feldolgozása
+        //-----
+        private void tabPage5_Enter(object sender, EventArgs e)
+        {
+            comboBox6.Items.Clear();
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT Sorszám,Imei,Állapot FROM Ajánlat ORDER BY Sorszám", con);
+            DataSet data = new DataSet();
+            con.Open();
+            adapter.Fill(data, "Ajánlat");
+            dataGridView3.DataSource = data;
+            dataGridView3.DataMember = "Ajánlat";
+            // ügyfél feltöltés
+            OleDbDataAdapter dapter = new OleDbDataAdapter("SELECT Név FROM Ügyfél", con);
+            DataTable dt = new DataTable();
+            dapter.Fill(dt);
+            for (int i = 0; i < dt.Rows.Count; i++)
+            {
+                comboBox6.Items.Add(dt.Rows[i]["Név"]);
+            }
+        }
+
+        private void button9_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("Elfogadta az ügyfél az ajánlatot?","KÉRDÉS",MessageBoxButtons.YesNo)==DialogResult.Yes)
+            {
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.Connection = con;
+            cmd.CommandText = "UPDATE Ajánlat SET Állapot='Elfogadva' WHERE Imei='" + dataGridView3.CurrentRow.Cells[1].Value.ToString() + "'";
+            con.Open();
+            cmd.ExecuteNonQuery();
+            con.Close();
+            MessageBox.Show("Kész!");
+
+            }
+        }
+        private void dataGridView3_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            //Ajánlat gridview kattintás, adatok, állapot!
+            try
+            {
+                string garancia = "";
+                string ajanlatcmd = "SELECT Sorszám,Állapot,Ár,Költség FROM Ajánlat WHERE Imei='" + dataGridView3.CurrentRow.Cells[1].Value.ToString() + "'";
+                string tipuscmd = "SELECT Típus,Garancia FROM Készülékek WHERE Imei='" + dataGridView3.CurrentRow.Cells[1].Value.ToString() + "'";
+                string markatipuscmd = "SELECT Márka,Típus FROM Telefonok WHERE Sorszám=" + tipus2;
+                OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+                OleDbCommand cmd = con.CreateCommand();
+                cmd.CommandText = ajanlatcmd;
+                con.Open();
+                OleDbDataReader reader = cmd.ExecuteReader();
+                string allapot = "";
+                while (reader.Read())
+                {
+                    ajanlattext.Text = reader["Sorszám"].ToString();
+                    ajartext.Text = reader["Ár"].ToString() + " Ft";
+                    koltsegtext.Text = reader["Költség"].ToString() + " Ft";
+                    allapot = reader["Állapot"].ToString();
+                    if (allapot == "Nincs elfogadva")
+                    {
+                        elfogadaslabel.Text = "AZ AJÁNLATOT NEM FOGADTÁK MÉG EL!";
+                    }
+                    else
+                    {
+                        elfogadaslabel.Text = "...";
+                        button9.Enabled = false;
+                    }
+                }
+                reader.Close();
+                cmd.CommandText = tipuscmd;
+                reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    tipus2 = Convert.ToInt16(reader["Típus"].ToString());
+                    garancia = reader["Garancia"].ToString();
+                }
+                reader.Close();
+                cmd.CommandText = markatipuscmd;
+                reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    ajanlmarkatext.Text = reader["Márka"].ToString();
+                    ajanltipustext.Text = reader["Típus"].ToString();
+                }
+                if (ajartext.Text == "0 Ft" && koltsegtext.Text == "0 Ft" && garancia == "False")
+                {
+                    elfogadaslabel.Text += " \n\nAZ AJÁNLAT MÉG HIÁNYOS!";
+                }
+                reader.Close();
+                con.Close();
+                //picturebox kép mutatás
+                if (File.Exists(Properties.Settings.Default.Keptar + "\\" + "imei_" + dataGridView3.CurrentRow.Cells[1].Value.ToString() + ".jpg"))
+                {
+                    pictureBox3.Image = Image.FromFile(Properties.Settings.Default.Keptar + "\\" + "imei_" + dataGridView3.CurrentRow.Cells[1].Value.ToString() + ".jpg");
+
+                }
+
+            }
+            catch (Exception)
+            {
+
+
+                pictureBox3.Image = Image.FromFile(Properties.Settings.Default.Keptar + "\\" + "no-photo.jpg");
+                ajanlattext.Text = "";
+                ajanlmarkatext.Text = "";
+                ajanltipustext.Text = "";
+                ajartext.Text = "";
+                koltsegtext.Text = "";
+
+            }
+            button10.Enabled = true;
+        }
+
+        private void comboBox6_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            
+            int id = 0;
+            string imei = "";
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.CommandText = "SELECT [Ügyfél ID] FROM Ügyfél WHERE Név='" + comboBox6.SelectedItem.ToString() + "'";
+            con.Open();
+            OleDbDataReader reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                id = Convert.ToInt16(reader["Ügyfél ID"].ToString());
+            }
+            con.Close();
+            con.Open();
+            try
+            {
+                cmd.CommandText = "SELECT Imei FROM Szervizlap WHERE [Ügyfél ID]=" + id;
+                OleDbDataReader reader2 = cmd.ExecuteReader();
+                while (reader2.Read())
+                {
+                    imei = reader2["Imei"].ToString();
+                }
+            }
+            catch (Exception)
+            {
+
+            }
+            OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT Sorszám,Imei,Állapot FROM Ajánlat WHERE Imei='" + imei + "' AND Állapot IS NOT NULL", con);
+            DataSet ds = new DataSet();
+            adapter.Fill(ds, "Ajánlat");
+            dataGridView3.DataSource = ds;
+            dataGridView3.DataMember = "Ajánlat";
+            con.Close();
+            dataGridView3_CellClick(sender, null);
+        }
+        private void button10_Click(object sender, EventArgs e)
+        {
+            printPreviewDialog1.Document = printDocument2;
+            printPreviewDialog1.ShowDialog();
+        }
+        private void printDocument2_PrintPage(object sender, System.Drawing.Printing.PrintPageEventArgs e)
+        {
+            int üfid = 0;
+            int javszem = 0;
+            int alkid = 0;
+            int summ = (Convert.ToInt32(ajartext.Text.Replace("Ft",""))) + (Convert.ToInt32(koltsegtext.Text.Replace("Ft","")));
+            //Nyomtatás "beállítása"
+            int BalMargo = 20, FelsoMargo = 30;
+            Font f_sor = new Font("Times New Roman", 12, FontStyle.Regular);
+            Font f_bold = new Font("Times New Roman", 12, FontStyle.Bold);
+            Font f_boldnagy = new Font("Times New Roman", 14, FontStyle.Bold);
+            Font header = new Font("Times New Roman", 18, FontStyle.Bold);
+            SolidBrush ecset = new SolidBrush(Color.Black);
+
+            //fix elemek a nyomtatási lapon...
+
+            e.Graphics.DrawString("Ajánlat", header, ecset, BalMargo + 340, FelsoMargo);
+            for (int i = 0; i < 170; i++)
+            {
+                //vízszintes vonalak...
+                e.Graphics.DrawString("-", f_boldnagy, ecset, (i * 5), FelsoMargo + 65);
+                e.Graphics.DrawString("-", f_boldnagy, ecset, (i * 5), FelsoMargo + 265);
+                e.Graphics.DrawString("-", f_boldnagy, ecset, (i * 5), FelsoMargo + 465);
+                e.Graphics.DrawString("-", f_boldnagy, ecset, (i * 5), FelsoMargo + 665);
+                e.Graphics.DrawString("-", f_boldnagy, ecset, (i * 5), FelsoMargo + 915);
+                e.Graphics.DrawString("-", f_boldnagy, ecset, (i * 5), FelsoMargo + 910);
+            }
+            for (int i = 0; i < 166; i++)
+            {
+                //függőleges vonalak
+                e.Graphics.DrawString("|", f_boldnagy, ecset, BalMargo + 170, FelsoMargo + 75 + (i * 5));
+            }
+            e.Graphics.DrawString("Készült: GSM szerviz V1.0", f_sor, ecset, BalMargo, FelsoMargo + 1100);
+            e.Graphics.DrawString("Nyomtatás időpontja: " + DateTime.Now.ToString(), f_bold, ecset, BalMargo, FelsoMargo + 1000);
+            e.Graphics.DrawString("Ügyfél adatai: ", f_bold, ecset, BalMargo, FelsoMargo + 100);
+            e.Graphics.DrawString("Ajánlat adó: ", f_bold, ecset, BalMargo, FelsoMargo + 300);
+            e.Graphics.DrawString("Felhasznált alkatrész: ", f_bold, ecset, BalMargo, FelsoMargo + 700);
+            e.Graphics.DrawString("Költségek: ", f_bold, ecset, BalMargo, FelsoMargo + 500);
+
+            //ki van belépve aki nyomtat???
+            string kiaz = "SELECT Név FROM Felhasználók WHERE [Felhasználó szám]=" + kicsoda;
+            string adatok = "SELECT * FROM Ügyfél WHERE Név='" + textBox3.Text + "'";
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.CommandText = kiaz;
+            con.Open();
+            OleDbDataReader reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                e.Graphics.DrawString("Nyomtatta: " + reader["Név"].ToString(), f_bold, ecset, BalMargo + 600, FelsoMargo + 1000);
+            }
+            reader.Close();
+            //---változó adatok beírása
+            //
+            cmd.CommandText = "SELECT [Ügyfél ID] FROM Készülékek WHERE Imei='" + dataGridView3.CurrentRow.Cells[1].Value.ToString() + "'";
+            reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                üfid = Convert.ToInt16(reader["Ügyfél ID"].ToString());
+            }
+            reader.Close();
+            cmd.CommandText = "SELECT * FROM Ügyfél WHERE [Ügyfél ID]=" + üfid;
+            reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                e.Graphics.DrawString("Név:   " +reader["Név"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 100);
+                e.Graphics.DrawString("Irányítószám:   " + reader["Irányítószám"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 130);
+                e.Graphics.DrawString("Város:   " + reader["Város"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 160);
+                e.Graphics.DrawString("Cím:   " + reader["Cím"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 190);
+                e.Graphics.DrawString("Telefonszám:   " + reader["Telefonszám"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 220);
+                e.Graphics.DrawString("E-mail cím:   " + reader["Email"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 250);
+            }
+            reader.Close();
+            cmd.CommandText = "SELECT [Javító személy] FROM Szervizlap WHERE Imei='" + dataGridView3.CurrentRow.Cells[1].Value.ToString()+"'";
+            reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                javszem = Convert.ToInt16(reader["Javító személy"].ToString());
+            }
+            reader.Close();
+            cmd.CommandText = "SELECT Név FROM Felhasználók WHERE [Felhasználó szám]=" + javszem;
+            reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                e.Graphics.DrawString("Név:   " + reader["Név"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 300);
+                e.Graphics.DrawString("Cég:   GSM Szerviz", f_bold, ecset, BalMargo + 200, FelsoMargo + 330);
+                e.Graphics.DrawString("Cím:    Király város, Sehol cím utca 66", f_bold, ecset, BalMargo + 200, FelsoMargo + 360);
+                e.Graphics.DrawString("Adószám:    Blabla456321", f_bold, ecset, BalMargo + 200, FelsoMargo + 390);
+            }
+            reader.Close();
+            e.Graphics.DrawString("Alkatrész ára:   "+ajartext.Text, f_bold, ecset, BalMargo + 200, FelsoMargo + 500);
+            e.Graphics.DrawString("Javítás ára:   " + koltsegtext.Text, f_bold, ecset, BalMargo + 200, FelsoMargo + 530);
+            e.Graphics.DrawString("Összesen:   " +summ.ToString()+" Ft", f_bold, ecset, BalMargo + 200, FelsoMargo + 560);
+            //
+            //
+            cmd.CommandText = "SELECT Alkatrész FROM Ajánlat WHERE Imei='" + dataGridView3.CurrentRow.Cells[1].Value.ToString()+"'";
+            reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                alkid = Convert.ToInt16(reader["Alkatrész"].ToString());
+            }
+            reader.Close();
+            cmd.CommandText = "SELECT Cikkszám, Megnevezés FROM Alkatrészek WHERE Kód=" + alkid;
+            reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                e.Graphics.DrawString("Cikkszám:   " + reader["Cikkszám"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 700);
+                e.Graphics.DrawString("Megnevezése:   " + reader["Megnevezés"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 730);
+            }
+            reader.Close();
+            con.Close();
+            e.Graphics.DrawString("Ajánlat sorszáma: " + ajanlattext.Text, f_bold, ecset, BalMargo + 640, FelsoMargo + 50);
+        }
+        //----
+        //Befejezett szervizek megjelenítése, nyomtatása!
+        //----
+        private void tabPage4_Enter(object sender, EventArgs e)
+        {
+            comboBox7.Items.Clear();
+            comboBox7.SelectedText = null;
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT Sorszám,Imei,Állapot FROM Szervizlap WHERE Állapot='Javitva' ORDER BY Sorszám", con);
+            DataSet data = new DataSet();
+            con.Open();
+            adapter.Fill(data, "Szervizlap");
+            dataGridView4.DataSource = data;
+            dataGridView4.DataMember = "Szervizlap";
+            //ügyfél feltöltése
+            OleDbDataAdapter dapter = new OleDbDataAdapter("SELECT Név FROM Ügyfél", con);
+            DataTable dt = new DataTable();
+            dapter.Fill(dt);
+            for (int i = 0; i < dt.Rows.Count; i++)
+            {
+                comboBox7.Items.Add(dt.Rows[i]["Név"]);
+            }
+        }
+
+        private void dataGridView4_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            
+            string hiba = "";
+            int javszem=0;
+            int id=0;
+            int tipus = 0;
+            string fokommand = "SELECT [Hiba leírása], Alkatrész, [Javító személy], [Ügyfél ID] FROM Szervizlap WHERE Sorszám=" + dataGridView4.CurrentRow.Cells[0].Value.ToString();
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.CommandText = fokommand;
+            con.Open();
+            OleDbDataReader reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                alkatresz = Convert.ToInt16(reader["Alkatrész"].ToString());
+                hiba = reader["Hiba leírása"].ToString();
+                javszem = Convert.ToInt16(reader["Javító személy"].ToString());
+                id = Convert.ToInt16(reader["Ügyfél ID"].ToString());
+            }
+            richTextBox2.Text = hiba;
+            reader.Close();
+            cmd.CommandText = "SELECT Megnevezés FROM Alkatrészek WHERE Kód=" + alkatresz;
+            OleDbDataReader reader2 = cmd.ExecuteReader();
+            while (reader2.Read())
+            {
+                textBox1.Text = reader2["Megnevezés"].ToString();
+            }
+            reader2.Close();
+            cmd.CommandText = "SELECT Név FROM Felhasználók WHERE [Felhasználó szám]=" + javszem;
+            OleDbDataReader reader3 = cmd.ExecuteReader();
+            while (reader3.Read())
+            {
+                textBox2.Text = reader3["Név"].ToString();
+            }
+            reader3.Close();
+            cmd.CommandText = "SELECT Név FROM Ügyfél WHERE [Ügyfél ID]=" + id;
+            OleDbDataReader reader4 = cmd.ExecuteReader();
+            while (reader4.Read())
+            {
+                textBox3.Text = reader4["Név"].ToString();
+            }
+            reader4.Close();
+            cmd.CommandText = "SELECT Típus FROM Készülékek WHERE Imei='" + dataGridView4.CurrentRow.Cells[1].Value.ToString()+"'";
+            OleDbDataReader reader5 = cmd.ExecuteReader();
+            while (reader5.Read())
+            {
+                tipus = Convert.ToInt16(reader5["Típus"].ToString());
+            }
+            reader5.Close();
+            cmd.CommandText = "SELECT Márka, Típus FROM Telefonok WHERE Sorszám=" + tipus;
+            OleDbDataReader reader6 = cmd.ExecuteReader();
+            while (reader6.Read())
+            {
+                textBox4.Text = reader6["Márka"].ToString();
+                textBox5.Text = reader6["Típus"].ToString();
+            }
+            con.Close();
+            button11.Enabled = true;
+        }
+
+        private void comboBox7_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            int id = 0;
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.CommandText = "SELECT [Ügyfél ID] FROM Ügyfél WHERE Név='" + comboBox7.SelectedItem.ToString() + "'";
+            con.Open();
+            OleDbDataReader reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                id = Convert.ToInt16(reader["Ügyfél ID"].ToString());
+            }
+            OleDbDataAdapter adapter = new OleDbDataAdapter("SELECT Sorszám,Imei,Állapot FROM Szervizlap WHERE [Ügyfél ID]=" + id + "AND Állapot='Javitva'", con);
+            DataSet ds = new DataSet();
+            adapter.Fill(ds, "Szervizlap");
+            dataGridView4.DataSource = ds;
+            dataGridView4.DataMember = "Szervizlap";
+            con.Close();
+        }
+
+        private void button11_Click(object sender, EventArgs e)
+        {
+            // szervizlap nyomtatása...
+            printPreviewDialog1.Document = printDocument1;
+            printPreviewDialog1.ShowDialog();
+        }
+
+        private void printDocument1_PrintPage(object sender, System.Drawing.Printing.PrintPageEventArgs e)
+        {
+            //Nyomtatás "beállítása"
+            int BalMargo = 20, FelsoMargo = 30;
+            Font f_sor = new Font("Times New Roman", 12, FontStyle.Regular);
+            Font f_bold = new Font("Times New Roman", 12, FontStyle.Bold);
+            Font f_boldnagy = new Font("Times New Roman", 14, FontStyle.Bold);
+            Font header = new Font("Times New Roman", 18, FontStyle.Bold);
+            SolidBrush ecset = new SolidBrush(Color.Black);
+
+            //fix elemek a nyomtatási lapon...
+
+            e.Graphics.DrawString("Szervizlap", header, ecset, BalMargo + 340, FelsoMargo);
+            for (int i = 0; i < 170; i++)
+            {
+                //vízszintes vonalak...
+                e.Graphics.DrawString("-", f_boldnagy, ecset, (i * 5), FelsoMargo + 65);
+                e.Graphics.DrawString("-", f_boldnagy, ecset, (i * 5), FelsoMargo + 265);
+                e.Graphics.DrawString("-", f_boldnagy, ecset, (i * 5), FelsoMargo + 465);
+                e.Graphics.DrawString("-", f_boldnagy, ecset, (i * 5), FelsoMargo + 665);
+                e.Graphics.DrawString("-", f_boldnagy, ecset, (i * 5), FelsoMargo + 915);
+                e.Graphics.DrawString("-", f_boldnagy, ecset, (i * 5), FelsoMargo + 910);
+            }
+            for (int i = 0; i < 166; i++)
+            {
+                //függőleges vonalak
+                e.Graphics.DrawString("|", f_boldnagy, ecset, BalMargo + 170, FelsoMargo+75+(i * 5));
+            }
+            e.Graphics.DrawString("Javította: ", f_bold, ecset, BalMargo, FelsoMargo + 950);
+            e.Graphics.DrawString("Ügyfél adatai:", f_bold, ecset, BalMargo, FelsoMargo + 100);
+            e.Graphics.DrawString("Nyomtatás időpontja: "+DateTime.Now.ToString(), f_bold, ecset, BalMargo, FelsoMargo + 1000);
+            e.Graphics.DrawString("Készülék adatai: ", f_bold, ecset, BalMargo, FelsoMargo + 300);
+            e.Graphics.DrawString("Hiba leírása: ", f_bold, ecset, BalMargo, FelsoMargo + 500);
+            e.Graphics.DrawString("Felhasznált alkatrész: ", f_bold, ecset, BalMargo, FelsoMargo + 700);
+            e.Graphics.DrawString("Készült: GSM szerviz V1.0", f_sor, ecset, BalMargo, FelsoMargo + 1100);
+
+            //
+            //Változó adatok nyomtatása...
+            //
+            //ki van belépve aki nyomtat???
+            string kiaz = "SELECT Név FROM Felhasználók WHERE [Felhasználó szám]=" + kicsoda;
+            string adatok = "SELECT * FROM Ügyfél WHERE Név='"+textBox3.Text+"'";
+            OleDbConnection con = new OleDbConnection(Properties.Settings.Default.gsmszerviz_adatbazisConnectionString);
+            OleDbCommand cmd = con.CreateCommand();
+            cmd.CommandText = kiaz;
+            con.Open();
+            OleDbDataReader reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                e.Graphics.DrawString("Nyomtatta: " + reader["Név"].ToString(), f_bold, ecset, BalMargo + 600, FelsoMargo + 1000);
+            }
+            reader.Close();
+            //
+            //változó adatok adatbázisból kattintásra!
+            //
+            e.Graphics.DrawString("Név:   " + textBox3.Text, f_bold, ecset, BalMargo + 200, FelsoMargo + 100);
+            cmd.CommandText = adatok;
+            reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                e.Graphics.DrawString("Irányítószám:   " + reader["Irányítószám"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 130);
+                e.Graphics.DrawString("Város:   " + reader["Város"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 160);
+                e.Graphics.DrawString("Cím:   " + reader["Cím"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 190);
+                e.Graphics.DrawString("Telefonszám:   " + reader["Telefonszám"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 220);
+                e.Graphics.DrawString("E-mail cím:   " + reader["Email"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 250);
+            }
+            reader.Close();
+            cmd.CommandText = "SELECT Szín,Állapota,Tartozékok FROM Készülékek WHERE Imei='" + dataGridView4.CurrentRow.Cells[1].Value.ToString()+"'";
+            reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                e.Graphics.DrawString("Márka:   " + textBox4.Text, f_bold, ecset, BalMargo + 200, FelsoMargo + 300);
+                e.Graphics.DrawString("Típus:   " + textBox5.Text, f_bold, ecset, BalMargo + 200, FelsoMargo + 330);
+                e.Graphics.DrawString("Színe:   " + reader["Szín"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 360);
+                e.Graphics.DrawString("Behozott állapota:   " + reader["Állapota"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 390);
+                e.Graphics.DrawString("Tartozékai:   " + reader["Tartozékok"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 420);
+            }
+            reader.Close();
+            cmd.CommandText = "SELECT Cikkszám FROM Alkatrészek WHERE Kód=" + alkatresz;
+            reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                e.Graphics.DrawString("Cikkszám:   " + reader["Cikkszám"].ToString(), f_bold, ecset, BalMargo + 200, FelsoMargo + 700);
+                e.Graphics.DrawString("Megnevezése:   " + textBox1.Text, f_bold, ecset, BalMargo + 200, FelsoMargo + 730);
+            }
+            reader.Close();
+            con.Close();
+            e.Graphics.DrawString(richTextBox2.Text, f_bold, ecset, BalMargo + 200, FelsoMargo + 500);
+            e.Graphics.DrawString(textBox2.Text, f_bold, ecset, BalMargo + 110, FelsoMargo + 950);
+        }
+
+    }
+    
+}
